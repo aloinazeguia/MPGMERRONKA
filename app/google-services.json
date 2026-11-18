@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "150605288045",
+    "project_id": "facturaskam-a048b",
+    "storage_bucket": "facturaskam-a048b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:150605288045:android:1bfb4c403a45c190ff2564",
+        "android_client_info": {
+          "package_name": "com.example.kamara"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfonkbI5Uon6ShLnB03P3k4tXerCjUiIo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
