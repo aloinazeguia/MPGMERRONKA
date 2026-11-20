@@ -65,10 +65,9 @@ dependencies {
     // Leer 'QR'
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
-    // Firebase (BoM + Firestore + Storage) y coroutines para tasks de Firebase
+    // Firebase (BoM + Firestore soilik -> testua gorde, argazkirik ez)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
-    implementation(libs.firebase.storage)
     implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)

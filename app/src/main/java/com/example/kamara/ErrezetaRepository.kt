@@ -1,40 +1,27 @@
 package com.example.kamara
 
-import android.net.Uri
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
 
 /**
- * Datu-base ez-erlazionalerako (Cloud Firestore) eta argazkien biltegirako (Storage)
- * sarbidea biltzen duen repository-a.
+ * Datu-base ez-erlazionalerako (Cloud Firestore) sarbidea.
+ * Ez da Firebase Storage erabiltzen (argazkiak ez dira gordetzen, ez dohainik delako).
  */
 class ErrezetaRepository(
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
-    private val storage: FirebaseStorage = FirebaseStorage.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
     private val bilduma = db.collection("errezetak")
 
-    /** Argazkia Storage-ra igo eta bere download URLa itzultzen du. Ez badago, null. */
-    private suspend fun igoArgazkia(uri: Uri?): String? {
-        if (uri == null) return null
-        val erreferentzia = storage.reference
-            .child("errezetak/${UUID.randomUUID()}.jpg")
-        erreferentzia.putFile(uri).await()
-        return erreferentzia.downloadUrl.await().toString()
-    }
-
-    /** Errezeta berria gorde: argazkia badago, lehenik igo eta URLa Firestore-en gorde. */
-    suspend fun gorde(errezeta: Errezeta, argazkiaUri: Uri?) {
-        val url = igoArgazkia(argazkiaUri)
+    /** Errezeta testua soilik gorde (izena, osagaiak, pausoak). */
+    suspend fun gorde(errezeta: Errezeta) {
         val dokumentua = bilduma.document() // auto-id
-        val gordetzeko = errezeta.copy(
-            id = dokumentua.id,
-            argazkiaUrl = url ?: errezeta.argazkiaUrl
-        )
-        dokumentua.set(gordetzeko).await()
+        dokumentua.set(
+            errezeta.copy(
+                id = dokumentua.id,
+                argazkiaUrl = null // ez dago argazkirik
+            )
+        ).await()
     }
 
     /** Errezeta guztiak, berrienak lehenengo. */
@@ -43,11 +30,8 @@ class ErrezetaRepository(
             .get().await()
             .toObjects(Errezeta::class.java)
 
-    /** Errezeta ezabatu, baita bere argazkia Storage-n badago. */
+    /** Errezeta ezabatu (Firestore-eko dokumentua soilik). */
     suspend fun ezabatu(errezeta: Errezeta) {
         bilduma.document(errezeta.id).delete().await()
-        errezeta.argazkiaUrl?.let { url ->
-            runCatching { storage.getReferenceFromUrl(url).delete().await() }
-        }
     }
 }

@@ -1,6 +1,6 @@
 package com.example.kamara
 
-import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Jetpack ViewModel: UI eta Firebase repository-aren arteko zubia. */
+/** Jetpack ViewModel: UI eta Firestore repository-aren arteko zubia. */
 class ErrezetaViewModel : ViewModel() {
     private val repo = ErrezetaRepository()
 
@@ -32,11 +32,21 @@ class ErrezetaViewModel : ViewModel() {
         }
     }
 
-    fun gorde(errezeta: Errezeta, argazkiaUri: Uri?, onAmaituta: () -> Unit) {
+    /** Errezeta testua soilik gordetzen da (ez argazkirik). */
+    fun gorde(
+        errezeta: Errezeta,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit = {}
+    ) {
         viewModelScope.launch {
-            runCatching { repo.gorde(errezeta, argazkiaUri) }
-                .onFailure { _errorea.value = it.message }
-                .onSuccess { onAmaituta() }
+            runCatching { repo.gorde(errezeta) }
+                .onFailure { e ->
+                    Log.e("ErrezetaVM", "Errorea gordetzean", e)
+                    val msg = e.message ?: "Errore ezezaguna gordetzean"
+                    _errorea.value = msg
+                    onError(msg)
+                }
+                .onSuccess { onSuccess() }
         }
     }
 
