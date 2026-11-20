@@ -46,7 +46,33 @@ class ErrezetaViewModel : ViewModel() {
                     _errorea.value = msg
                     onError(msg)
                 }
-                .onSuccess { onSuccess() }
+                .onSuccess {
+                    // Gorde ondoren zerrenda freskatu: onAmaituta-ra itzultzean
+                    // errezeta berria berehala ikusten da, menutik irten gabe.
+                    kargatu()
+                    onSuccess()
+                }
+        }
+    }
+
+    /** Errezeta editatuta gorde (dokumentu bera eguneratu). */
+    fun eguneratu(
+        errezeta: Errezeta,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            runCatching { repo.eguneratu(errezeta) }
+                .onFailure { e ->
+                    Log.e("ErrezetaVM", "Errorea eguneratzean", e)
+                    val msg = e.message ?: "Errore ezezaguna eguneratzean"
+                    _errorea.value = msg
+                    onError(msg)
+                }
+                .onSuccess {
+                    kargatu()
+                    onSuccess()
+                }
         }
     }
 

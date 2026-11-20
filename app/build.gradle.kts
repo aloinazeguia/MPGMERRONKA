@@ -52,8 +52,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation("androidx.constraintlayout:constraintlayout:2.2.2")
-    implementation(libs.play.services.location)
-    implementation(libs.play.services.mlkit.barcode.scanning)
     // CameraX
     val cameraxVersion = "1.6.2"
     implementation("androidx.camera:camera-core:$cameraxVersion")
@@ -62,8 +60,8 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraxVersion")
     // Accompanist para gestionar permisos en Compose
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
-    // Leer 'QR'
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // OCR: argazkiko testua irakurtzeko (ML Kit Text Recognition, dohainik)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Firebase (BoM + Firestore soilik -> testua gorde, argazkirik ez)
     implementation(platform(libs.firebase.bom))

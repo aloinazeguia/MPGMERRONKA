@@ -29,37 +29,188 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
- * Errezeta berria sortzeko formularioa.
- * QR-tik eskaneatutako datuekin dator [hasierakoErrezeta] (null bada, hutsik hasi).
- * Ez da argazkirik gordetzen (Storage ez da dohainik).
+ * Formularioaren atea. Hiru egoera daude:
+ *  - `editatzenAriDenErrezeta != null` -> **edizioa**: errezeta horren eremuak beteta,
+ *    eta gordetzean Firestore-eko dokumentu bera eguneratu.
+ *  - `hasierakoTestua != null` -> **Kamera (OCR)**: testu osoa eremu bakarrean.
+ *  - bestela -> **Errezetak → +**: formulario klasikoa (lehengo metodoa).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ErrezetaFormularioa(
     vm: ErrezetaViewModel,
-    hasierakoErrezeta: Errezeta?,
+    hasierakoTestua: String?,
+    editatzenAriDenErrezeta: Errezeta?,
+    onAtzera: () -> Unit,
+    onAmaituta: () -> Unit
+) {
+    when {
+        editatzenAriDenErrezeta != null -> {
+            val e = editatzenAriDenErrezeta
+            if (e.testua.isNotBlank()) {
+                TestuFormularioa(vm, e.testua, e, onAtzera, onAmaituta)
+            } else {
+                ErrezetaFormularioKlasikoa(vm, e, onAtzera, onAmaituta)
+            }
+        }
+
+        hasierakoTestua != null -> {
+            TestuFormularioa(vm, hasierakoTestua, null, onAtzera, onAmaituta)
+        }
+
+        else -> {
+            ErrezetaFormularioKlasikoa(vm, null, onAtzera, onAmaituta)
+        }
+    }
+}
+
+/** Errezetak pantailatik gehitzean/editatzean erabiltzen den formulario klasikoa. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ErrezetaFormularioKlasikoa(
+    vm: ErrezetaViewModel,
+    editatzen: Errezeta?,
     onAtzera: () -> Unit,
     onAmaituta: () -> Unit
 ) {
     val context = LocalContext.current
-
-    // QR-tik etorritako datuekin hasi (edo hutsik, eskuz gehitzen bada)
-    var izena by remember(hasierakoErrezeta) {
-        mutableStateOf(hasierakoErrezeta?.izena ?: "")
+    var izena by remember(editatzen) { mutableStateOf(editatzen?.izena ?: "") }
+    var osagaiakTestua by remember(editatzen) {
+        mutableStateOf(editatzen?.osagaiak?.joinToString("\n") ?: "")
     }
-    var osagaiakTestua by remember(hasierakoErrezeta) {
-        mutableStateOf(hasierakoErrezeta?.osagaiak?.joinToString("\n") ?: "")
-    }
-    var pausoakTestua by remember(hasierakoErrezeta) {
-        mutableStateOf(hasierakoErrezeta?.pausoak?.joinToString("\n") ?: "")
+    var pausoakTestua by remember(editatzen) {
+        mutableStateOf(editatzen?.pausoak?.joinToString("\n") ?: "")
     }
     var gordetzen by remember { mutableStateOf(false) }
+
+    val gorde: (Errezeta) -> Unit = { e ->
+        gordetzen = true
+        val onSuccess = {
+            gordetzen = false
+            onAmaituta()
+        }
+        val onError: (String) -> Unit = { msg ->
+            gordetzen = false
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+        if (editatzen != null) vm.eguneratu(e, onSuccess, onError)
+        else vm.gorde(e, onSuccess, onError)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(if (editatzen != null) "Editatu errezeta" else "Errezeta berria") },
+                navigationIcon = {
+                    IconButton(onClick = onAtzera) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atzera")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            OutlinedTextField(
+                value = izena,
+                onValueChange = { izena = it },
+                label = { Text("Izena") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = osagaiakTestua,
+                onValueChange = { osagaiakTestua = it },
+                label = { Text("Osagaiak (lerro bakoitzeko bat)") },
+                minLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = pausoakTestua,
+                onValueChange = { pausoakTestua = it },
+                label = { Text("Sukaldatzeko pausoak (lerro bakoitzeko bat)") },
+                minLines = 5,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = {
+                    if (izena.isNotBlank() && !gordetzen) {
+                        gorde(
+                            Errezeta(
+                                id = editatzen?.id ?: "",
+                                izena = izena.trim(),
+                                osagaiak = osagaiakTestua.lines()
+                                    .map { it.trim() }
+                                    .filter { it.isNotBlank() },
+                                pausoak = pausoakTestua.lines()
+                                    .map { it.trim() }
+                                    .filter { it.isNotBlank() },
+                                sortuta = editatzen?.sortuta ?: System.currentTimeMillis()
+                            )
+                        )
+                    }
+                },
+                enabled = izena.isNotBlank() && !gordetzen,
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                Text(
+                    if (gordetzen) "Gordetzen..."
+                    else if (editatzen != null) "Gorde aldaketak"
+                    else "Gorde Firebasen"
+                )
+            }
+        }
+    }
+}
+
+/** Kameraren OCR-ek irakurritako testua erakusten duen formularioa (eta haren edizioa). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TestuFormularioa(
+    vm: ErrezetaViewModel,
+    hasierakoTestua: String,
+    editatzen: Errezeta?,
+    onAtzera: () -> Unit,
+    onAmaituta: () -> Unit
+) {
+    val context = LocalContext.current
+    var testua by remember(hasierakoTestua) { mutableStateOf(hasierakoTestua) }
+    var gordetzen by remember { mutableStateOf(false) }
+
+    val gorde: (Errezeta) -> Unit = { e ->
+        gordetzen = true
+        val onSuccess = {
+            gordetzen = false
+            onAmaituta()
+        }
+        val onError: (String) -> Unit = { msg ->
+            gordetzen = false
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+        if (editatzen != null) vm.eguneratu(e, onSuccess, onError)
+        else vm.gorde(e, onSuccess, onError)
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(if (hasierakoErrezeta != null) "QR-tik irakurritako errezeta" else "Errezeta berria")
+                    Text(
+                        when {
+                            editatzen != null -> "Editatu testua"
+                            else -> "Argazkitik irakurritako testua"
+                        }
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onAtzera) {
@@ -76,69 +227,42 @@ fun ErrezetaFormularioa(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            if (hasierakoErrezeta != null) {
-                Text(
-                    "Eskaneatutako datuak berrikusi eta gorde ditzakezu.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            OutlinedTextField(
-                value = izena,
-                onValueChange = { izena = it },
-                label = { Text("Errezetaren izena") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+            Text(
+                "Testu osoa gordeko da. Zuzendu nahi baduzu, editatu hemen.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = osagaiakTestua,
-                onValueChange = { osagaiakTestua = it },
-                label = { Text("Osagaiak (lerro bakoitzeko bat)") },
-                minLines = 3,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = pausoakTestua,
-                onValueChange = { pausoakTestua = it },
-                label = { Text("Sukaldatzeko pausoak (lerro bakoitzeko bat)") },
-                minLines = 3,
+                value = testua,
+                onValueChange = { testua = it },
+                label = { Text("Errezetaren testua") },
+                minLines = 8,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = {
-                    if (izena.isNotBlank() && !gordetzen) {
-                        gordetzen = true
-                        vm.gorde(
-                            errezeta = Errezeta(
-                                izena = izena.trim(),
-                                osagaiak = osagaiakTestua.lines()
-                                    .map { it.trim() }.filter { it.isNotEmpty() },
-                                pausoak = pausoakTestua.lines()
-                                    .map { it.trim() }.filter { it.isNotEmpty() }
-                            ),
-                            onSuccess = {
-                                gordetzen = false
-                                onAmaituta()
-                            },
-                            onError = { errorMsg ->
-                                gordetzen = false
-                                Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                            }
+                    if (testua.isNotBlank() && !gordetzen) {
+                        gorde(
+                            Errezeta(
+                                id = editatzen?.id ?: "",
+                                testua = testua.trim(),
+                                sortuta = editatzen?.sortuta ?: System.currentTimeMillis()
+                            )
                         )
                     }
                 },
-                enabled = izena.isNotBlank() && !gordetzen,
+                enabled = testua.isNotBlank() && !gordetzen,
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
-                Text(if (gordetzen) "Gordetzen..." else "Gorde Firebasen")
+                Text(
+                    if (gordetzen) "Gordetzen..."
+                    else if (editatzen != null) "Gorde aldaketak"
+                    else "Gorde Firebasen"
+                )
             }
         }
     }
